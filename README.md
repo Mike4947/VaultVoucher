@@ -6,6 +6,7 @@ A simple, lightweight plugin that allows players to convert their in-game curren
 
 *(A voucher item held in-game showing its name and lore)*
 
+<img src="https://img.shields.io/github/downloads/Mike4947/vaultboucher/total?style=for-the-badge&color=2196F3" alt="Total Downloads"/>
 ---
 
 ## ❗ Important: Dependencies
