@@ -6,21 +6,30 @@ load: POSTWORLD
 author: Mike4947
 description: to convert their in-game money into physical voucher items
 
-# Hard dependency - Required for the plugin to function at all.
 depend: [Vault]
+softdepend: [Essentials]
 
-log-prefix: VAULT-VOUCHER
+log-prefix: VaultVoucher
 
 commands:
   voucher:
-    description: Creates a physical voucher from your account balance.
-    usage: "/voucher <amount>"
-    permission: vaultvoucher.create
+    description: Creates and manages economy vouchers.
+    usage: "/voucher <create|give|reload>"
+    aliases: [v, moneyitem]
 
 permissions:
   vaultvoucher.create:
-    description: Allows players to create vouchers.
+    description: Allows players to create vouchers from their own balance.
     default: true
+  vaultvoucher.create.others:
+    description: Allows admins to create vouchers from another player's balance.
+    default: op
   vaultvoucher.redeem:
     description: Allows players to redeem vouchers.
     default: true
+  vaultvoucher.give:
+    description: Allows admins to give a voucher to a player for free.
+    default: op
+  vaultvoucher.reload:
+    description: Allows admins to reload the plugin's configuration file.
+    default: op

@@ -1,109 +1,238 @@
 package com.example.main.vaultvoucher;
 
 import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.economy.EconomyResponse;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
+import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-// The class now implements TabCompleter as well as CommandExecutor
 public class VoucherCommand implements CommandExecutor, TabCompleter {
+
+    // The unique key for our hidden NBT data. This makes the voucher unforgeable.
+    public static final NamespacedKey VOUCHER_VALUE_KEY = new NamespacedKey(VaultVoucher.getInstance(), "voucher-value");
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("This command can only be run by a player.");
+        if (args.length == 0) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.usage_error"));
             return true;
         }
 
-        if (args.length != 1) {
-            player.sendMessage(ChatColor.RED + "Usage: /voucher <amount>");
-            return true;
-        }
+        String subCommand = args[0].toLowerCase();
 
-        double amount;
-        try {
-            amount = Double.parseDouble(args[0]);
-            if (amount <= 0) {
-                player.sendMessage(ChatColor.RED + "The amount must be a positive number.");
-                return true;
-            }
-        } catch (NumberFormatException e) {
-            player.sendMessage(ChatColor.RED + "That is not a valid number.");
-            return true;
-        }
-
-        Economy economy = VaultVoucher.getEconomy();
-        double balance = economy.getBalance(player);
-
-        if (balance < amount) {
-            player.sendMessage(ChatColor.RED + "You do not have enough funds to create this voucher.");
-            return true;
-        }
-
-        EconomyResponse response = economy.withdrawPlayer(player, amount);
-        if (response.transactionSuccess()) {
-            ItemStack voucher = createVoucher(amount, player.getName());
-            player.getInventory().addItem(voucher);
-            player.sendMessage(ChatColor.GREEN + "You have successfully created a voucher for $" + String.format("%,.2f", amount));
-        } else {
-            player.sendMessage(ChatColor.RED + "An error occurred: " + response.errorMessage);
+        switch (subCommand) {
+            case "create":
+                handleCreate(sender, args);
+                break;
+            case "give":
+                handleGive(sender, args);
+                break;
+            case "reload":
+                handleReload(sender);
+                break;
+            default:
+                sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.usage_error"));
+                break;
         }
 
         return true;
     }
 
-    /**
-     * NEW METHOD: Handles tab-completion for the /voucher command.
-     */
-    @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        // We only want to provide suggestions for the first argument (<amount>)
-        if (args.length == 1) {
-            // Define our list of example amounts
-            List<String> suggestions = Arrays.asList("10", "50", "100", "500", "1000", "5000");
-
-            // This will hold the suggestions that match what the player has already typed
-            List<String> completions = new ArrayList<>();
-
-            // Get the current incomplete argument
-            String currentArg = args[0].toLowerCase();
-
-            // Loop through our suggestions and add the matching ones to the completions list
-            for (String s : suggestions) {
-                if (s.startsWith(currentArg)) {
-                    completions.add(s);
-                }
-            }
-            return completions;
+    private void handleCreate(CommandSender sender, String[] args) {
+        // /voucher create <amount> [player]
+        if (args.length < 2) {
+            sendMessage(sender, "&cUsage: /voucher create <amount> [player]");
+            return;
         }
 
-        // Return an empty list for any other arguments
-        return new ArrayList<>();
+        double amount = parseAmount(args[1]);
+        if (amount <= 0) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.invalid_amount"));
+            return;
+        }
+
+        Player target;
+        if (args.length > 2) { // Admin creating for another player
+            if (!sender.hasPermission("vaultvoucher.create.others")) {
+                sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.no_permission"));
+                return;
+            }
+            target = Bukkit.getPlayer(args[2]);
+            if (target == null) {
+                sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.player_not_found"));
+                return;
+            }
+        } else { // Player creating for themselves
+            if (!(sender instanceof Player)) {
+                sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.not_a_player"));
+                return;
+            }
+            if (!sender.hasPermission("vaultvoucher.create")) {
+                sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.no_permission"));
+                return;
+            }
+            target = (Player) sender;
+        }
+
+        Economy economy = VaultVoucher.getEconomy();
+        if (economy.getBalance(target) < amount) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.not_enough_money"));
+            return;
+        }
+
+        economy.withdrawPlayer(target, amount);
+        ItemStack voucher = createVoucher(amount, sender.getName());
+        target.getInventory().addItem(voucher);
+
+        sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.voucher_created").replace("{value}", formatCurrency(amount)));
+        if (sender != target) {
+            sendMessage(target, VaultVoucher.getInstance().getConfig().getString("messages.voucher_received")
+                    .replace("{value}", formatCurrency(amount))
+                    .replace("{player}", sender.getName()));
+        }
     }
 
-    private ItemStack createVoucher(double amount, String creatorName) {
-        ItemStack voucher = new ItemStack(Material.PAPER);
+    private void handleGive(CommandSender sender, String[] args) {
+        // /voucher give <player> <amount>
+        if (!sender.hasPermission("vaultvoucher.give")) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.no_permission"));
+            return;
+        }
+
+        if (args.length < 3) {
+            sendMessage(sender, "&cUsage: /voucher give <player> <amount>");
+            return;
+        }
+
+        Player target = Bukkit.getPlayer(args[1]);
+        if (target == null) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.player_not_found"));
+            return;
+        }
+
+        double amount = parseAmount(args[2]);
+        if (amount <= 0) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.invalid_amount"));
+            return;
+        }
+
+        ItemStack voucher = createVoucher(amount, sender.getName());
+        target.getInventory().addItem(voucher);
+
+        sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.voucher_given")
+                .replace("{value}", formatCurrency(amount))
+                .replace("{player}", target.getName()));
+        sendMessage(target, VaultVoucher.getInstance().getConfig().getString("messages.voucher_received")
+                .replace("{value}", formatCurrency(amount))
+                .replace("{player}", sender.getName()));
+    }
+
+    private void handleReload(CommandSender sender) {
+        if (!sender.hasPermission("vaultvoucher.reload")) {
+            sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.no_permission"));
+            return;
+        }
+        VaultVoucher.getInstance().reloadConfig();
+        sendMessage(sender, VaultVoucher.getInstance().getConfig().getString("messages.config_reloaded"));
+    }
+
+    public static ItemStack createVoucher(double amount, String creatorName) {
+        FileConfiguration config = VaultVoucher.getInstance().getConfig();
+
+        Material material = Material.matchMaterial(config.getString("voucher_item.material", "PAPER"));
+        ItemStack voucher = new ItemStack(material != null ? material : Material.PAPER);
         ItemMeta meta = voucher.getItemMeta();
 
-        meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "Bank Voucher");
-        meta.setLore(Arrays.asList(
-                ChatColor.WHITE + "Value: $" + String.format("%,.2f", amount),
-                ChatColor.GRAY + "Right-click to redeem.",
-                ChatColor.DARK_GRAY + "Created by: " + creatorName
-        ));
+        // Set name and lore from config
+        String name = config.getString("voucher_item.name");
+        meta.setDisplayName(formatMessage(name));
 
+        List<String> lore = new ArrayList<>();
+        for (String line : config.getStringList("voucher_item.lore")) {
+            lore.add(formatMessage(line
+                    .replace("{value}", formatCurrency(amount))
+                    .replace("{creator}", creatorName)));
+        }
+        meta.setLore(lore);
+
+        // --- SECURE NBT DATA ---
+        meta.getPersistentDataContainer().set(VOUCHER_VALUE_KEY, PersistentDataType.DOUBLE, amount);
         voucher.setItemMeta(meta);
+
         return voucher;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        List<String> completions = new ArrayList<>();
+        List<String> suggestions = new ArrayList<>();
+
+        if (args.length == 1) {
+            suggestions.add("create");
+            suggestions.add("give");
+            suggestions.add("reload");
+        } else if (args.length == 2) {
+            String subCommand = args[0].toLowerCase();
+            if (subCommand.equals("give")) {
+                Bukkit.getOnlinePlayers().forEach(p -> suggestions.add(p.getName()));
+            } else if (subCommand.equals("create")) {
+                suggestions.addAll(List.of("100", "1000", "10000"));
+            }
+        } else if (args.length == 3) {
+            String subCommand = args[0].toLowerCase();
+            if (subCommand.equals("create")) {
+                Bukkit.getOnlinePlayers().forEach(p -> suggestions.add(p.getName()));
+            } else if (subCommand.equals("give")) {
+                suggestions.addAll(List.of("100", "1000", "10000"));
+            }
+        }
+
+        String currentArg = args[args.length - 1].toLowerCase();
+        for (String s : suggestions) {
+            if (s.toLowerCase().startsWith(currentArg)) {
+                completions.add(s);
+            }
+        }
+        return completions;
+    }
+
+    // Utility methods
+    private double parseAmount(String amountStr) {
+        try {
+            return Double.parseDouble(amountStr);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private static String formatCurrency(double amount) {
+        return NumberFormat.getCurrencyInstance().format(amount);
+    }
+
+    private static String formatMessage(String message) {
+        if(message == null) return "";
+        return ChatColor.translateAlternateColorCodes('&', message);
+    }
+
+    private static void sendMessage(CommandSender recipient, String message) {
+        if (message == null || message.isEmpty()) return;
+        // Get the prefix string from the config file.
+        String prefix = VaultVoucher.getInstance().getConfig().getString("messages.prefix", "&e[Voucher] &r");
+        // Correctly REPLACE the placeholder in the message.
+        String finalMessage = message.replace("{prefix}", prefix);
+        recipient.sendMessage(formatMessage(finalMessage));
     }
 }

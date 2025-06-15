@@ -1,0 +1,39 @@
+# ===================================================================
+# VaultVoucher Configuration
+# ===================================================================
+# All messages support standard Minecraft color codes (e.g., &a, &l, &o).
+# Placeholders:
+# {player} - The player's name.
+# {value} - The formatted value of the voucher (e.g., $1,000.00).
+# {creator} - The name of the player who created the voucher.
+# ===================================================================
+
+# Settings for the voucher item itself.
+voucher_item:
+  material: 'PAPER'
+  name: '&6&lBank Voucher'
+  lore:
+    - '&fValue: &e{value}'
+    - ''
+    - '&7Right-click to redeem this voucher.'
+    - '&8Created by: {creator}'
+
+# All messages sent by the plugin.
+messages:
+  prefix: '&e[Voucher] &r'
+  voucher_created: '{prefix}&aYou have created a voucher worth {value}.'
+  voucher_given: '{prefix}&aYou have given a voucher worth {value} to {player}.'
+  voucher_received: '{prefix}&aYou have received a voucher worth {value} from {player}.'
+  voucher_redeemed: '{prefix}&aYou have redeemed a voucher worth {value}.'
+  config_reloaded: '{prefix}&aConfiguration reloaded successfully.'
+  no_permission: '{prefix}&cYou do not have permission to use this command.'
+  player_not_found: '{prefix}&cPlayer not found or is offline.'
+  not_a_player: '{prefix}&cThis command can only be run by a player.'
+  invalid_amount: '{prefix}&cPlease enter a valid, positive number.'
+  not_enough_money: '{prefix}&cYou do not have enough money.'
+  usage_error: '{prefix}&cIncorrect usage. Please check /voucher help.'
+
+# Economy settings for creating vouchers.
+economy:
+  min_amount: 1.0
+  max_amount: 1000000.0
