@@ -7,13 +7,17 @@ import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
-public class VoucherCommand implements CommandExecutor {
+// The class now implements TabCompleter as well as CommandExecutor
+public class VoucherCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -39,7 +43,7 @@ public class VoucherCommand implements CommandExecutor {
             return true;
         }
 
-        Economy economy = com.example.main.vaultvoucher.VaultVoucher.getEconomy();
+        Economy economy = VaultVoucher.getEconomy();
         double balance = economy.getBalance(player);
 
         if (balance < amount) {
@@ -57,6 +61,35 @@ public class VoucherCommand implements CommandExecutor {
         }
 
         return true;
+    }
+
+    /**
+     * NEW METHOD: Handles tab-completion for the /voucher command.
+     */
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        // We only want to provide suggestions for the first argument (<amount>)
+        if (args.length == 1) {
+            // Define our list of example amounts
+            List<String> suggestions = Arrays.asList("10", "50", "100", "500", "1000", "5000");
+
+            // This will hold the suggestions that match what the player has already typed
+            List<String> completions = new ArrayList<>();
+
+            // Get the current incomplete argument
+            String currentArg = args[0].toLowerCase();
+
+            // Loop through our suggestions and add the matching ones to the completions list
+            for (String s : suggestions) {
+                if (s.startsWith(currentArg)) {
+                    completions.add(s);
+                }
+            }
+            return completions;
+        }
+
+        // Return an empty list for any other arguments
+        return new ArrayList<>();
     }
 
     private ItemStack createVoucher(double amount, String creatorName) {

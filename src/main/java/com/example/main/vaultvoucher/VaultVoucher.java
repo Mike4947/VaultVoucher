@@ -13,15 +13,20 @@ public final class VaultVoucher extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Check for Vault and hook into it
         if (!setupEconomy()) {
-            getLogger().severe("Disabled due to no Vault dependency found! Please install Vault.");
+            // The setupEconomy() method will now print the specific error.
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-        // Register command and listener
-        this.getCommand("voucher").setExecutor(new VoucherCommand());
+        // Create a single instance of our command handler
+        VoucherCommand commandHandler = new VoucherCommand();
+
+        // Register the new handler for BOTH the command execution and tab completion
+        this.getCommand("voucher").setExecutor(commandHandler);
+        this.getCommand("voucher").setTabCompleter(commandHandler);
+
+        // Register the event listener
         this.getServer().getPluginManager().registerEvents(new VoucherListener(), this);
 
         getLogger().info("VaultVoucher has been enabled!");
