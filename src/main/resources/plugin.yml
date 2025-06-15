@@ -1,0 +1,21 @@
+name: VaultVoucher
+version: '1.0'
+main: com.example.main.vaultvoucher.VaultVoucher
+api-version: '1.21'
+load: POSTWORLD
+author: Mike4947
+description: A simple plugin to convert money into physical voucher items
+depend: [Vault]
+log-prefix: VAULT-VOUCHER
+commands:
+  voucher:
+    description: Creates a physical voucher from your account balance.
+    usage: "/voucher <amount>"
+    permission: vaultvoucher.create
+permissions:
+  vaultvoucher.create:
+    description: Allows players to create vouchers.
+    default: true
+  vaultvoucher.redeem:
+    description: Allows players to redeem vouchers.
+    default: true
