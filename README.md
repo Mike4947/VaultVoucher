@@ -15,7 +15,7 @@ This plugin **WILL NOT** load or function correctly without the following two pl
     This is required to handle the connection to your server's economy.
 
 2.  ### [**EssentialsX**](https://essentialsx.net/downloads.html) (or any other Vault-compatible economy plugin)
-    This is required to be the "bank" that actually manages the player balances. EssentialsX is highly recommended for its stability and ease of use.
+    This is required to be the "bank" that actually manages the player balances. EssentialsX is needed for its stability and ease of use.
 
 ---
 
